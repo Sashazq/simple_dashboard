@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { retryPayment } from "../lib/retryEngine";
 import { PaymentRetryState } from "../types";
 
@@ -10,8 +10,31 @@ interface RetryStateMap {
 
 export function useBatchPaymentRetry() {
   const [retryStates, setRetryStates] = useState<RetryStateMap>({});
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const retrySelected = async (transactionIds: string[]) => {
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  const retrySelected = async (
+    transactionIds: string[],
+  ): Promise<
+    Array<{ transactionId: string; newStatus: "Success" | "Failed" }>
+  > => {
+    // Cancel any previous retry operation
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller for this batch
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     // Initialize retry states
     const initialStates: RetryStateMap = {};
     transactionIds.forEach((id) => {
@@ -25,23 +48,55 @@ export function useBatchPaymentRetry() {
 
     // Start concurrent retries
     const retryPromises = transactionIds.map(async (transactionId) => {
-      const result = await retryPayment(transactionId);
+      // Check if aborted before processing
+      if (signal.aborted) {
+        return null;
+      }
 
-      // Update individual row state
-      setRetryStates((prev) => ({
-        ...prev,
-        [transactionId]: {
-          transactionId,
-          isRetrying: false,
-          newStatus: result,
-        },
-      }));
+      try {
+        const result = await retryPayment(transactionId);
 
-      return { transactionId, newStatus: result };
+        // Only update state if not aborted
+        if (!signal.aborted) {
+          setRetryStates((prev) => ({
+            ...prev,
+            [transactionId]: {
+              transactionId,
+              isRetrying: false,
+              newStatus: result,
+            },
+          }));
+        }
+
+        return { transactionId, newStatus: result };
+      } catch (err) {
+        // Handle any errors in individual retry
+        if (!signal.aborted) {
+          setRetryStates((prev) => ({
+            ...prev,
+            [transactionId]: {
+              transactionId,
+              isRetrying: false,
+              newStatus: "Failed",
+            },
+          }));
+        }
+        console.error(`Retry failed for ${transactionId}:`, err);
+        return null;
+      }
     });
 
     // Wait for all retries to complete
-    await Promise.all(retryPromises);
+    const results = await Promise.all(retryPromises);
+
+    // Clear abort controller reference
+    abortControllerRef.current = null;
+
+    // Return results directly (not relying on state reads)
+    return results.filter((r) => r !== null) as Array<{
+      transactionId: string;
+      newStatus: "Success" | "Failed";
+    }>;
   };
 
   const getRetryState = (

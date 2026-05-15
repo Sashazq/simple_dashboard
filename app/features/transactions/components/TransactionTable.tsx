@@ -9,6 +9,7 @@ interface TransactionTableProps {
   selectedIds: Set<string>;
   onSelectTransaction: (id: string) => void;
   retryStates?: Record<string, PaymentRetryState>;
+  isRetryInProgress?: boolean;
 }
 
 export function TransactionTable({
@@ -16,6 +17,7 @@ export function TransactionTable({
   selectedIds,
   onSelectTransaction,
   retryStates = {},
+  isRetryInProgress = false,
 }: TransactionTableProps) {
   if (transactions.length === 0) {
     return (
@@ -57,6 +59,7 @@ export function TransactionTable({
               isSelected={selectedIds.has(transaction.id)}
               onSelect={onSelectTransaction}
               retryState={retryStates[transaction.id]}
+              isRetryInProgress={isRetryInProgress}
             />
           ))}
         </tbody>

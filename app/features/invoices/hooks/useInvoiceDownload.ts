@@ -12,7 +12,7 @@ export function useInvoiceDownload() {
   const [loadingStates, setLoadingStates] = useState<UseInvoiceDownloadState>(
     {},
   );
-  const { success } = useNotification();
+  const { success, error } = useNotification();
 
   const downloadInvoice = async (transactionId: string) => {
     setLoadingStates((prev) => ({ ...prev, [transactionId]: true }));
@@ -20,8 +20,11 @@ export function useInvoiceDownload() {
     try {
       await generateAndDownloadPDF(transactionId);
       success("Invoice downloaded successfully");
-    } catch (error) {
-      console.error("Download failed:", error);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to download invoice";
+      error(`Download failed: ${errorMessage}`);
+      console.error("Download failed:", err);
     } finally {
       setLoadingStates((prev) => ({ ...prev, [transactionId]: false }));
     }

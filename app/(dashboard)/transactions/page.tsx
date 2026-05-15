@@ -53,17 +53,12 @@ export default function TransactionsPage() {
     clearRetryStates();
     setRetryStates({});
 
-    await retrySelected(selectedArray);
+    // Get results directly from retrySelected instead of reading state
+    const results = await retrySelected(selectedArray);
 
-    // Update transaction statuses based on retry results
-    selectedArray.forEach((transactionId) => {
-      const state = getRetryState(transactionId);
-      if (state) {
-        updateTransactionStatus(
-          transactionId,
-          state.newStatus as "Success" | "Failed",
-        );
-      }
+    // Update transaction statuses based on returned results
+    results.forEach(({ transactionId, newStatus }) => {
+      updateTransactionStatus(transactionId, newStatus);
     });
 
     setIsRetrying(false);
@@ -92,9 +87,14 @@ export default function TransactionsPage() {
           isRetrying={isRetrying}
           onRetry={handleRetrySelected}
         />
-        {selectedIds.size > 0 && (
+        {selectedIds.size > 0 && !isRetrying && (
           <span className="text-sm text-gray-600">
             {selectedIds.size} selected
+          </span>
+        )}
+        {isRetrying && (
+          <span className="text-sm text-blue-600 font-medium">
+            Retrying {selectedIds.size} transaction(s)...
           </span>
         )}
       </div>
@@ -105,6 +105,7 @@ export default function TransactionsPage() {
           selectedIds={selectedIds}
           onSelectTransaction={toggleSelection}
           retryStates={retryStates}
+          isRetryInProgress={isRetrying}
         />
       </div>
     </div>

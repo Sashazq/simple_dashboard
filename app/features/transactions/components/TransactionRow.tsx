@@ -13,6 +13,7 @@ interface TransactionRowProps {
   isSelected: boolean;
   onSelect: (id: string) => void;
   retryState?: PaymentRetryState;
+  isRetryInProgress?: boolean;
 }
 
 export function TransactionRow({
@@ -21,6 +22,7 @@ export function TransactionRow({
   isSelected,
   onSelect,
   retryState,
+  isRetryInProgress = false,
 }: TransactionRowProps) {
   const statusClasses = {
     Success: "text-green-600 bg-green-50",
@@ -31,6 +33,9 @@ export function TransactionRow({
   const showRetryUI =
     retryState && (retryState.isRetrying || retryState.newStatus);
 
+  // Disable checkbox if ANY retry is in progress (not just this row)
+  const isCheckboxDisabled = isRetryInProgress;
+
   return (
     <tr className="border-b hover:bg-gray-50">
       <td className="px-6 py-4">
@@ -38,6 +43,7 @@ export function TransactionRow({
           <Checkbox
             checked={isSelected}
             onChange={() => onSelect(transaction.id)}
+            disabled={isCheckboxDisabled}
           />
         ) : showRetryUI ? (
           <RetryStatusIndicator
@@ -59,7 +65,10 @@ export function TransactionRow({
         {transaction.status}
       </td>
       <td className="px-6 py-4">
-        <DownloadInvoiceButton transactionId={transaction.id} />
+        <DownloadInvoiceButton
+          transactionId={transaction.id}
+          status={transaction.status}
+        />
       </td>
     </tr>
   );
